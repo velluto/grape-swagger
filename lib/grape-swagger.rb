@@ -1,6 +1,16 @@
 require 'kramdown'
 
 module Grape
+  class Entity
+    class << self
+      attr_accessor :class_name
+      def class_name(name = nil)
+        @class_name = name if name
+        @class_name
+      end
+    end
+  end
+
   class API
     class << self
       attr_reader :combined_routes
@@ -86,7 +96,15 @@ module Grape
               routes = @@target_class::combined_routes[params[:name]]
               routes_array = routes.map do |route|
                 notes = route.route_notes && @@markdown ? Kramdown::Document.new(route.route_notes.strip_heredoc).to_html : route.route_notes
-                {
+                if entity = route.route_entity
+                  if entity.is_a?(Array)
+                    entity = entity.first
+                    response_class = "List[#{entity.class_name}]"
+                  else
+                    response_class = entity.class_name
+                  end
+                end
+                route_hash = {
                   :path => parse_path(route.route_path, api_version),
                   :operations => [{
                     :notes => notes,
@@ -97,6 +115,46 @@ module Grape
                       parse_params(route.route_params, route.route_path, route.route_method)
                   }]
                 }
+                route_hash[:operations].first[:responseClass] = response_class if response_class
+                #route_hash[:operations].first[:responseClass] = 'Pet'
+                route_hash
+              end
+
+              routes_entities = {}
+              entities = []
+              routes.each do |route|
+                entity = route.route_entity
+                entities << entity if entity
+                entities += route.route_entities if route.route_entities
+              end
+
+              while entities.any? do
+                entity = entities.pop
+                entity = entity.first if entity.is_a?(Array)
+                class_name = entity.class_name
+                properties = {}
+                exposures = entity.exposures
+                entity.documentation.each_pair do |field, documentation|
+                  field = exposures[field][:as] if exposures[field][:as]
+                  properties[field] = {
+                    'description' => documentation[:desc]
+                  }
+                  if documentation[:type].is_a?(Array)
+                    properties[field]['type'] = 'Array'
+                    refclass = documentation[:type].first
+                    refclass_name = refclass.class_name
+                    properties[field]['items'] = { '$ref' => refclass_name }
+                    unless routes_entities[refclass_name]
+                      entities << refclass
+                    end
+                  else
+                    properties[field]['type'] = documentation[:type]
+                  end
+                end
+                routes_entities[class_name] = {
+                  'id' => class_name,
+                  'properties' => properties
+                }
               end
 
               {
@@ -104,7 +162,8 @@ module Grape
                 swaggerVersion: "1.1",
                 basePath: base_path || request.base_url,
                 resourcePath: "",
-                apis: routes_array
+                apis: routes_array,
+                models: routes_entities
               }
             end
           end
