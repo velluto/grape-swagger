@@ -13,18 +13,13 @@ module Grape
 
   class API
     class << self
-      attr_reader :combined_routes
+      attr_reader :mounts
 
       alias original_mount mount
 
       def mount(mounts)
         original_mount mounts
-        @combined_routes ||= {}
-        mounts::routes.each do |route|
-          resource = route.route_path.match('\/(\w*?)[\.\/\(]').captures.first || '/'
-          @combined_routes[resource.downcase] ||= []
-          @combined_routes[resource.downcase] << route
-        end
+        (@mounts ||= []) << mounts
       end
 
       def add_swagger_documentation(options={})
@@ -64,11 +59,26 @@ module Grape
             api_version = options[:api_version]
             base_path = options[:base_path]
 
+            @@combined_routes ||= {}
+            @@target_class.mounts.each do |mount|
+              mount::routes.each do |route|
+                if options[:prefix_hack]
+                  next unless mount.prefix
+                  resource = mount.prefix.split('/').last
+                else
+                  resource = route.route_path.match('\/(\w*?)[\.\/\(]').captures.first || '/'
+                end
+                @@combined_routes[resource.downcase] ||= []
+                @@combined_routes[resource.downcase] << route
+              end
+            end
+
+
             desc 'Swagger compatible API description'
             get @@mount_path do
               header['Access-Control-Allow-Origin'] = '*'
               header['Access-Control-Request-Method'] = '*'
-              routes = @@target_class::combined_routes
+              routes = @@combined_routes
 
               if @@hide_documentation_path
                 routes.reject!{ |route, value| "/#{route}/".index(parse_path(@@mount_path, nil) << '/') == 0 }
@@ -93,7 +103,7 @@ module Grape
             get "#{@@mount_path}/:name" do
               header['Access-Control-Allow-Origin'] = '*'
               header['Access-Control-Request-Method'] = '*'
-              routes = @@target_class::combined_routes[params[:name]]
+              routes = @@combined_routes[params[:name]]
               routes_array = routes.map do |route|
                 notes = route.route_notes && @@markdown ? Kramdown::Document.new(route.route_notes.strip_heredoc).to_html : route.route_notes
                 if entity = route.route_entity
