@@ -118,6 +118,7 @@ module Grape
                   :path => parse_path(route.route_path, api_version),
                   :operations => [{
                     :notes => notes,
+                    :supportedContentTypes => ['application/json', 'application/xml'],
                     :summary => route.route_description || '',
                     :nickname   => route.route_method + route.route_path.gsub(/[\/:\(\)\.]/,'-'),
                     :httpMethod => route.route_method,
@@ -126,7 +127,6 @@ module Grape
                   }]
                 }
                 route_hash[:operations].first[:responseClass] = response_class if response_class
-                #route_hash[:operations].first[:responseClass] = 'Pet'
                 route_hash
               end
 
