@@ -64,7 +64,7 @@ module Grape
               mount::routes.each do |route|
                 if options[:prefix_hack]
                   next unless mount.prefix
-                  resource = mount.prefix.split('/').last
+                  resource = mount.name
                 else
                   resource = route.route_path.match('\/(\w*?)[\.\/\(]').captures.first || '/'
                 end
@@ -96,6 +96,29 @@ module Grape
               }
             end
 
+            desc 'Swagger compatible API description (mounts)'
+            get "#{@@mount_path}/mounts/:name" do
+              header['Access-Control-Allow-Origin'] = '*'
+              header['Access-Control-Request-Method'] = '*'
+              routes = @@combined_routes[params[:name]]
+
+              routes_hash = {}
+              routes.each do |local_route|
+                 api = local_route.route_path.split('/')[4].gsub('(.:format)', '')
+                 routes_hash[api] =
+                  { :path => "#{@@mount_path}/mount_details/#{params[:name]}/#{api}.{format}" }
+              end
+              routes_array = routes_hash.values
+
+              {
+                apiVersion: api_version,
+                swaggerVersion: "1.1",
+                basePath: base_path || request.base_url,
+                operations:[],
+                apis: routes_array
+              }
+            end
+
             desc 'Swagger compatible API description for specific API', :params =>
               {
                 "name" => { :desc => "Resource name of mounted API", :type => "string", :required => true },
@@ -104,6 +127,21 @@ module Grape
               header['Access-Control-Allow-Origin'] = '*'
               header['Access-Control-Request-Method'] = '*'
               routes = @@combined_routes[params[:name]]
+              build_api_for(routes, api_version, base_path)
+            end
+
+            get "#{@@mount_path}/mount_details/:name/:class" do
+              header['Access-Control-Allow-Origin'] = '*'
+              header['Access-Control-Request-Method'] = '*'
+              routes = @@combined_routes[params[:name]]
+              routes = routes.select { |local_route| local_route.route_path.match(params[:class]) }
+              build_api_for(routes, api_version, base_path)
+            end
+          end
+
+
+          helpers do
+            def build_api_for(routes, api_version, base_path)
               routes_array = routes.map do |route|
                 notes = route.route_notes && @@markdown ? Kramdown::Document.new(route.route_notes.strip_heredoc).to_html : route.route_notes
                 if entity = route.route_entity
@@ -176,10 +214,6 @@ module Grape
                 models: routes_entities
               }
             end
-          end
-
-
-          helpers do
             def parse_params(params, path, method)
               if params
                 params.map do |param, value|
