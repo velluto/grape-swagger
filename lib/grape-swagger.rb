@@ -114,7 +114,6 @@ module Grape
                 apiVersion: api_version,
                 swaggerVersion: "1.1",
                 basePath: base_path || request.base_url,
-                operations:[],
                 apis: routes_array
               }
             end
@@ -152,19 +151,20 @@ module Grape
                     response_class = entity.class_name
                   end
                 end
+                nickname = route.route_nickname ? route.route_nickname : route.route_method + route.route_path.gsub(/[\/:\(\)\.]/,'-')
                 route_hash = {
                   :path => parse_path(route.route_path, api_version),
                   :operations => [{
                     :notes => notes,
                     :supportedContentTypes => ['application/json', 'application/xml'],
                     :summary => route.route_description || '',
-                    :nickname   => route.route_method + route.route_path.gsub(/[\/:\(\)\.]/,'-'),
+                    :nickname   => nickname,
                     :httpMethod => route.route_method,
                     :parameters => parse_header_params(route.route_headers) +
-                      parse_params(route.route_params, route.route_path, route.route_method)
+                      parse_params(route.route_params, route.route_path, route.route_method, route.route_extra_types)
                   }]
                 }
-                route_hash[:operations].first[:responseClass] = response_class if response_class
+                route_hash[:operations].first[:responseClass] = response_class ? response_class : 'string'
                 route_hash
               end
 
@@ -214,16 +214,17 @@ module Grape
                 models: routes_entities
               }
             end
-            def parse_params(params, path, method)
+            def parse_params(params, path, method, extra_types)
               if params
                 params.map do |param, value|
                   value[:type] = 'file' if value.is_a?(Hash) && value[:type] == 'Rack::Multipart::UploadedFile'
 
+                  name = (value.is_a?(Hash) && value[:full_name]) || param
+                  value[:type] = extra_types[name] if (extra_types || {})[name]
                   dataType = value.is_a?(Hash) ? value[:type]||'String' : 'String'
                   description = value.is_a?(Hash) ? value[:desc] : ''
                   required = value.is_a?(Hash) ? !!value[:required] : false
                   paramType = path.match(":#{param}") ? 'path' : (method == 'POST') ? 'body' : 'query'
-                  name = (value.is_a?(Hash) && value[:full_name]) || param
                   {
                     paramType: paramType,
                     name: name,
