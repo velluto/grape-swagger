@@ -5,7 +5,7 @@
 
 Gem::Specification.new do |s|
   s.name = "grape-swagger"
-  s.version = "0.5.3.velluto"
+  s.version = "0.5.4.velluto"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Tim Vandecasteele"]
