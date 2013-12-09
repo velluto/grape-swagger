@@ -5,11 +5,11 @@
 
 Gem::Specification.new do |s|
   s.name = "grape-swagger"
-  s.version = "0.5.0.velluto"
+  s.version = "0.5.1.velluto"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Tim Vandecasteele"]
-  s.date = "2012-10-19"
+  s.date = "2013-12-09"
   s.description = "A simple way to add proper auto generated documentation - that can be displayed with swagger - to your inline described grape API"
   s.email = "tim.vandecasteele@gmail.com"
   s.extra_rdoc_files = [
